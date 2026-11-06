@@ -1,0 +1,16 @@
+{
+  "name": "小鹤反查 · Xiaohe Lookup",
+  "short_name": "小鹤反查",
+  "description": "小鹤双拼·音形反向查询：键码查汉字、汉字查全码、拼音转双拼。离线可用。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#07080A",
+  "theme_color": "#07080A",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

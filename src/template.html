@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>小鹤反查 · Xiaohe Lookup</title>
+<meta name="description" content="小鹤双拼·音形反向查询：键码查汉字、汉字查全码、拼音转双拼。单文件离线可用。Offline reverse lookup for Xiaohe Shuangpin/Yinxing codes.">
+<meta name="theme-color" content="#07080A">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2307080A'/%3E%3Crect x='12' y='3' width='1.6' height='26' fill='%23E8E3D9'/%3E%3Cline x1='4' y1='28' x2='28' y2='5' stroke='%234B6FFF' stroke-width='3'/%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  color-scheme: dark light;
+  --ground:#07080A; --paper:#0C0E13; --raised:#12151D; --hover:#1C2130;
+  --ink:#E8E3D9; --bright:#FBF8F1; --muted:#A5A8B2; --rule:#353B48;
+  --accent:#91ABFF; --sel:#283C69; --gold:#C6A56F; --oxblood:#D695A7; --success:#92BBA4;
+  --mono:ui-monospace,"SF Mono",Menlo,"JetBrains Mono","IBM Plex Mono",Consolas,monospace;
+  --serif:"Songti SC","STSong","Noto Serif CJK SC",Georgia,"Times New Roman",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",Segoe UI,sans-serif;
+}
+@media (prefers-color-scheme: light){
+  :root{
+    --ground:#E8E3D9; --paper:#FBF8F1; --raised:#F0ECE3; --hover:#E4E0D7;
+    --ink:#24262B; --bright:#14171C; --muted:#5E6068; --rule:#C9C1B2;
+    --accent:#3156C9; --sel:#DCE3F7; --gold:#795722; --oxblood:#76273A; --success:#35644E;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{background:var(--ground)}
+body{
+  font-family:var(--sans); color:var(--ink); background:var(--ground);
+  min-height:100vh; display:flex; flex-direction:column;
+  transition:background 160ms ease;
+}
+header{
+  border-bottom:1px solid var(--rule);
+  padding:20px clamp(16px,5vw,48px) 16px;
+}
+.head-row{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; max-width:900px; margin:0 auto; width:100%}
+h1{
+  font-family:var(--serif); font-weight:600; font-size:26px; color:var(--bright);
+  letter-spacing:.02em;
+}
+.kicker{
+  font-family:var(--mono); font-size:11px; letter-spacing:.14em;
+  color:var(--gold); text-transform:uppercase;
+}
+.offline-note{margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--muted); letter-spacing:.08em}
+.offline-note .dot{display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--success); margin-right:6px; vertical-align:1px}
+main{flex:1; width:100%; max-width:900px; margin:0 auto; padding:28px clamp(16px,5vw,48px) 48px}
+.search-wrap{position:relative}
+#q{
+  width:100%; font-family:var(--mono); font-size:clamp(18px,2.6vw,22px);
+  color:var(--bright); background:var(--raised); border:1px solid var(--rule);
+  padding:14px 44px 14px 16px; outline:none; border-radius:0;
+  clip-path:polygon(7px 0,100% 0,100% calc(100% - 7px),calc(100% - 7px) 100%,0 100%,0 7px);
+  caret-color:var(--accent);
+  transition:border-color 160ms ease, background 160ms ease;
+}
+#q:focus{border-color:var(--accent); background:var(--paper)}
+#q::placeholder{color:var(--muted); opacity:.75}
+.clear-btn{
+  position:absolute; right:8px; top:50%; transform:translateY(-50%);
+  background:none; border:none; color:var(--muted); font-size:18px; line-height:1;
+  cursor:pointer; padding:6px 8px; font-family:var(--mono); display:none;
+}
+.clear-btn:hover{color:var(--bright)}
+.search-meta{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:8px; min-height:16px}
+.search-meta b{color:var(--accent); font-weight:400}
+#results{margin-top:20px}
+section{margin-bottom:28px}
+h2{
+  font-family:var(--mono); font-size:12px; font-weight:400; letter-spacing:.14em;
+  color:var(--muted); border-bottom:1px solid var(--rule); padding-bottom:6px; margin-bottom:12px;
+}
+h2 .v{color:var(--accent)}
+h2 .g{color:var(--gold)}
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(158px,1fr)); gap:8px}
+.card{
+  display:flex; align-items:center; gap:12px; text-align:left;
+  background:var(--raised); border:1px solid var(--rule); cursor:pointer;
+  padding:10px 12px; color:inherit; font:inherit; position:relative;
+  clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);
+  transition:background 160ms ease, border-color 160ms ease;
+}
+.card:hover, .card.hl{background:var(--hover); border-color:var(--gold)}
+.card.hl::after{
+  content:""; position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--accent);
+}
+.card .ch{font-family:var(--serif); font-size:34px; line-height:1; color:var(--bright); min-width:38px; text-align:center}
+.card .meta{display:flex; flex-direction:column; gap:3px; min-width:0}
+.card .code{font-family:var(--mono); font-size:15px; color:var(--bright)}
+.card .code .xm{color:var(--muted)}
+.card .py{font-family:var(--mono); font-size:12px; color:var(--gold)}
+.card.rare{opacity:.55}
+.card.rare .ch::after{
+  content:""; display:inline-block; width:5px; height:5px; border-radius:50%;
+  background:var(--oxblood); margin-left:4px; vertical-align:6px;
+}
+.note{font-family:var(--mono); font-size:11px; color:var(--muted); margin-top:10px}
+.rows{display:flex; flex-direction:column; gap:6px; max-width:560px}
+.row{
+  display:flex; align-items:baseline; gap:16px; background:var(--raised);
+  border:1px solid var(--rule); padding:10px 14px; cursor:pointer;
+  clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);
+  transition:background 160ms ease, border-color 160ms ease;
+}
+.row:hover, .row.hl{background:var(--hover); border-color:var(--gold)}
+.row.hl{box-shadow:inset 2px 0 0 var(--accent)}
+.row .r-ch{font-family:var(--serif); font-size:26px; color:var(--bright); min-width:34px}
+.row .r-code{font-family:var(--mono); font-size:16px; color:var(--bright)}
+.row .r-code .xm{color:var(--muted)}
+.row .r-py{font-family:var(--mono); font-size:13px; color:var(--gold); margin-left:auto}
+.row.rare{opacity:.6}
+.chips{display:flex; flex-wrap:wrap; gap:8px}
+.chip{
+  font-family:var(--mono); font-size:14px; color:var(--ink); background:var(--raised);
+  border:1px solid var(--rule); padding:7px 12px; cursor:pointer;
+  clip-path:polygon(4px 0,100% 0,100% calc(100% - 4px),calc(100% - 4px) 100%,0 100%,0 4px);
+  transition:border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+.chip:hover{border-color:var(--gold); color:var(--bright); background:var(--hover)}
+.chip .c-sub{color:var(--gold); font-size:12px; margin-left:6px}
+.chip .c-n{color:var(--muted); font-size:11px; margin-left:6px}
+.seq-row{display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:8px}
+.seq-syl{font-family:var(--mono); font-size:14px; color:var(--gold); min-width:64px}
+.seq-arrow{color:var(--muted); font-family:var(--mono); font-size:13px}
+.empty{color:var(--muted); font-size:15px; line-height:1.9; max-width:560px}
+.empty .ex{margin-top:14px}
+footer{
+  border-top:1px solid var(--rule); padding:16px clamp(16px,5vw,48px);
+  font-family:var(--mono); font-size:11px; color:var(--muted); line-height:1.9;
+}
+footer a{color:var(--gold); text-decoration:none; border-bottom:1px solid var(--rule)}
+footer a:hover{color:var(--bright); border-color:var(--gold)}
+.foot-inner{max-width:900px; margin:0 auto}
+#toast{
+  position:fixed; left:50%; bottom:32px; transform:translateX(-50%) translateY(8px);
+  background:var(--raised); border:1px solid var(--gold); color:var(--bright);
+  font-family:var(--mono); font-size:13px; padding:9px 16px; opacity:0;
+  pointer-events:none; transition:opacity 160ms ease, transform 160ms ease;
+  clip-path:polygon(5px 0,100% 0,100% calc(100% - 5px),calc(100% - 5px) 100%,0 100%,0 5px);
+}
+#toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion: reduce){
+  *{transition:none !important}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="head-row">
+    <h1>小鹤反查</h1>
+    <span class="kicker">Shuangpin · Yinxing · Reverse</span>
+    <span class="offline-note"><span class="dot"></span>离线可用 · offline</span>
+  </div>
+</header>
+<main>
+  <div class="search-wrap">
+    <input id="q" type="text" autocomplete="off" spellcheck="false" autofocus
+      placeholder="双拼、全码、汉字或拼音：xn / xnld / 小 / xiao / nihao"
+      aria-label="查询：双拼码、音形全码、汉字或拼音">
+    <button class="clear-btn" id="clear" aria-label="清空">×</button>
+  </div>
+  <div class="search-meta" id="meta"></div>
+  <div id="results" aria-live="polite"></div>
+</main>
+<footer>
+  <div class="foot-inner">
+    单文件离线工具 · 保存本页即可随时使用，无需网络。<br>
+    数据：<a href="__REPO_URL__/blob/main/data/README.md">小鹤音形码表</a>，经
+    <a href="https://github.com/boomker/rime-fast-xhup">rime-fast-xhup</a>（LGPL-3.0）整理，感谢
+    <a href="https://flypy.com">小鹤音形 · 鹤大</a>。本工具以
+    <a href="__REPO_URL__/blob/main/LICENSE">GPL-3.0</a> 发布 ·
+    <a href="__REPO_URL__">GitHub</a>
+  </div>
+</footer>
+<div id="toast" role="status"></div>
+<script>
+"use strict";
+const DATA = /*__DATA__*/{};
+
+// ---- indexes ------------------------------------------------------------
+const PY2SP = new Map();
+const SPS = Object.keys(DATA).sort();
+for (const sp of SPS) {
+  const syl = DATA[sp][0];
+  if (syl && !PY2SP.has(syl)) PY2SP.set(syl, sp);
+}
+const CHAR_IDX = new Map();  // char -> [{sp,xm,w,py}]
+for (const sp of SPS) {
+  for (const [ch, xm, w, py] of DATA[sp][1]) {
+    let a = CHAR_IDX.get(ch);
+    if (!a) CHAR_IDX.set(ch, a = []);
+    a.push({ sp, xm, w, py });
+  }
+}
+const SYLS = [...PY2SP.keys()].sort((a, b) => b.length - a.length);
+
+// ---- helpers ------------------------------------------------------------
+const $results = document.getElementById("results");
+const $meta = document.getElementById("meta");
+const $q = document.getElementById("q");
+const $clear = document.getElementById("clear");
+const $toast = document.getElementById("toast");
+const CAP = 120;
+let hlIndex = -1, copyables = [];
+
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined) n.textContent = text;
+  return n;
+}
+function codeSpans(sp, xm) {
+  const frag = document.createDocumentFragment();
+  frag.appendChild(el("span", null, sp));
+  if (xm) frag.appendChild(el("span", "xm", xm));
+  return frag;
+}
+function toast(msg) {
+  $toast.textContent = msg;
+  $toast.classList.add("show");
+  clearTimeout(toast.t);
+  toast.t = setTimeout(() => $toast.classList.remove("show"), 1200);
+}
+function copyText(text) {
+  const done = () => toast("已复制 " + text);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(done, () => fallbackCopy(text, done));
+  } else fallbackCopy(text, done);
+}
+function fallbackCopy(text, done) {
+  const ta = document.createElement("textarea");
+  ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+  document.body.appendChild(ta); ta.select();
+  try { document.execCommand("copy"); done(); } catch (e) { toast("复制失败"); }
+  document.body.removeChild(ta);
+}
+function trackCopy(node, text) {
+  node.addEventListener("click", () => copyText(text));
+  copyables.push({ node, text });
+}
+function section(title) {
+  const s = el("section");
+  const h = el("h2");
+  title.forEach(part => h.appendChild(typeof part === "string" ? el("span", null, part) : part));
+  s.appendChild(h);
+  $results.appendChild(s);
+  return s;
+}
+function titlePart(text, cls) { return el("span", cls || null, text); }
+
+// ---- section renderers ----------------------------------------------------
+function renderGroup(sp, mode) {  // mode: "sp" | "py"
+  const [syl, rows] = DATA[sp];
+  if (!rows.length) return;
+  const title = mode === "sp"
+    ? (sp === syl
+        ? [titlePart("双拼/零声母 " + sp)]
+        : [titlePart("双拼 "), titlePart(sp, "v"), titlePart(" ＝ " + syl)])
+    : [titlePart("拼音 "), titlePart(syl, "g"), titlePart(" → 双拼 " + sp)];
+  title.push(titlePart(" · " + rows.length + " 字"));
+  const s = section(title);
+  const grid = el("div", "grid");
+  const shown = rows.slice(0, CAP);
+  for (const [ch, xm, w, py] of shown) {
+    const card = el("button", "card" + (w === 0 ? " rare" : ""));
+    card.appendChild(el("span", "ch", ch));
+    const meta = el("span", "meta");
+    const code = el("span", "code");
+    code.appendChild(codeSpans(sp, xm));
+    meta.appendChild(code);
+    meta.appendChild(el("span", "py", py || syl));
+    card.appendChild(meta);
+    trackCopy(card, sp + xm);
+    grid.appendChild(card);
+  }
+  s.appendChild(grid);
+  if (rows.length > CAP) s.appendChild(el("div", "note", "显示前 " + CAP + " 字，共 " + rows.length + " 字"));
+}
+
+function renderExact(sp, xm) {
+  const rows = DATA[sp] ? DATA[sp][1].filter(r => r[1] === xm) : [];
+  if (!rows.length) return false;
+  const s = section([titlePart("全码 "), titlePart(sp + xm, "v"), titlePart(" 精确命中 · " + rows.length + " 字")]);
+  const grid = el("div", "grid");
+  for (const [ch, , w, py] of rows) {
+    const card = el("button", "card" + (w === 0 ? " rare" : ""));
+    card.appendChild(el("span", "ch", ch));
+    const meta = el("span", "meta");
+    const code = el("span", "code");
+    code.appendChild(codeSpans(sp, xm));
+    meta.appendChild(code);
+    meta.appendChild(el("span", "py", py || DATA[sp][0]));
+    card.appendChild(meta);
+    trackCopy(card, sp + xm);
+    grid.appendChild(card);
+  }
+  s.appendChild(grid);
+  return true;
+}
+
+function renderChar(ch) {
+  const entries = CHAR_IDX.get(ch);
+  const s = section([titlePart("汉字 "), titlePart(ch, "v"), titlePart(entries ? " · " + entries.length + " 个编码" : "")]);
+  if (!entries) {
+    s.appendChild(el("div", "empty", "未收录：不在小鹤音形码表内（可能是繁体、异体或扩展区生僻字）。"));
+    return;
+  }
+  const rows = el("div", "rows");
+  const seen = new Set();
+  entries.sort((a, b) => (a.w === 0) - (b.w === 0) || b.w - a.w);
+  for (const e of entries) {
+    const key = e.sp + e.xm;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const row = el("button", "row" + (e.w === 0 ? " rare" : ""));
+    row.appendChild(el("span", "r-ch", ch));
+    const code = el("span", "r-code");
+    code.appendChild(codeSpans(e.sp, e.xm));
+    row.appendChild(code);
+    row.appendChild(el("span", "r-py", e.py || DATA[e.sp][0]));
+    trackCopy(row, key);
+    rows.appendChild(row);
+  }
+  s.appendChild(rows);
+}
+
+function renderSequence(syls) {
+  const s = section([titlePart("拼音组 "), titlePart(syls.join(" "), "g"), titlePart(" → 双拼键序 "), titlePart(syls.map(x => PY2SP.get(x)).join(" "), "v")]);
+  const codes = [];
+  for (const syl of syls) {
+    const sp = PY2SP.get(syl);
+    codes.push(sp);
+    const line = el("div", "seq-row");
+    line.appendChild(el("span", "seq-syl", syl));
+    line.appendChild(el("span", "seq-arrow", "→"));
+    line.appendChild(el("span", "seq-arrow", sp));
+    const top = DATA[sp][1].filter(r => r[2] > 0).slice(0, 4);
+    for (const [ch, xm, w, py] of top) {
+      const chip = el("button", "chip");
+      chip.appendChild(el("span", null, ch));
+      const code = el("span", "c-sub");
+      code.appendChild(codeSpans("", sp + xm));
+      chip.appendChild(code);
+      trackCopy(chip, sp + xm);
+      line.appendChild(chip);
+    }
+    s.appendChild(line);
+  }
+  s.appendChild(el("div", "note", "键序：" + codes.join(" ") + "（点击任一候选复制其全码）"));
+}
+
+function renderInitial(letter) {
+  const hits = SPS.filter(sp => sp[0] === letter);
+  const s = section([titlePart("声母/首键 "), titlePart(letter, "v"), titlePart(" · " + hits.length + " 个双拼码")]);
+  const chips = el("div", "chips");
+  for (const sp of hits) {
+    const chip = el("button", "chip");
+    chip.appendChild(el("span", null, sp));
+    chip.appendChild(el("span", "c-sub", DATA[sp][0]));
+    chip.appendChild(el("span", "c-n", DATA[sp][1].length + "字"));
+    chip.addEventListener("click", () => { $q.value = sp; render(sp); });
+    chips.appendChild(chip);
+  }
+  s.appendChild(chips);
+}
+
+function renderEmptyState() {
+  const s = section([titlePart("用法")]);
+  const box = el("div", "empty");
+  box.appendChild(el("span", null, "输入双拼两码（xn）列出同音所有汉字；输入四码全码（xnld）精确查字；粘贴汉字（小）查它的编码；输入全拼（xiao 或 nihao）换算双拼键序。点击任何结果卡片即复制全码。"));
+  const ex = el("div", "ex chips");
+  for (const [label] of [["xn"], ["xnld"], ["小"], ["xiao"], ["nihao"]]) {
+    const chip = el("button", "chip", label);
+    chip.addEventListener("click", () => { $q.value = label; render(label); });
+    ex.appendChild(chip);
+  }
+  box.appendChild(ex);
+  s.appendChild(box);
+}
+
+// ---- query pipeline -------------------------------------------------------
+function segment(s) {
+  const out = [];
+  let i = 0;
+  while (i < s.length) {
+    let hit = null;
+    for (const syl of SYLS) {
+      if (s.startsWith(syl, i)) { hit = syl; break; }
+    }
+    if (!hit) return null;
+    out.push(hit);
+    i += hit.length;
+  }
+  return out;
+}
+
+function render(raw) {
+  $results.textContent = "";
+  copyables = [];
+  hlIndex = -1;
+  $meta.textContent = "";
+  const q = raw.trim();
+  $clear.style.display = q ? "block" : "none";
+  if (!q) { renderEmptyState(); return; }
+
+  // character query: CJK blocks only (ü and tone marks stay in the pinyin path)
+  const han = [...q].filter(c => {
+    const cp = c.codePointAt(0);
+    return cp >= 0x3400 && cp <= 0x2FA1F;
+  });
+  if (han.length) {
+    for (const ch of [...new Set(han)].slice(0, 4)) renderChar(ch);
+    return;
+  }
+
+  let s = q.toLowerCase();
+  if (s.includes("~")) {
+    const [sp, xm] = s.split("~");
+    if (DATA[sp] && xm) {
+      renderExact(sp, xm);
+      if (!$results.childNodes.length) renderNoHit(q);
+      return;
+    }
+    s = sp;
+  }
+  s = s.replace(/[^a-zü]/g, "");
+  if (!s) { renderEmptyState(); return; }
+
+  if (s.length === 1) { renderInitial(s); return; }
+
+  if (s.length === 2) {
+    if (DATA[s]) {
+      renderGroup(s, "sp");
+      $meta.textContent = DATA[s][0] + " · " + DATA[s][1].length + " 字";
+    } else if (PY2SP.has(s.replace(/v/g, "ü"))) {
+      renderGroup(PY2SP.get(s.replace(/v/g, "ü")), "py");
+    } else renderNoHit(s);
+    return;
+  }
+
+  // 3+ letters: exact full code, single syllable, or syllable sequence
+  let any = false;
+  const py = s.replace(/v/g, "ü");
+  if (PY2SP.has(py)) { renderGroup(PY2SP.get(py), "py"); return; }
+  if (s.length === 4 && DATA[s.slice(0, 2)]) any = renderExact(s.slice(0, 2), s.slice(2));
+  const seg = segment(py);
+  if (seg && seg.length > 1) { renderSequence(seg); any = true; return; }
+  if (!any) {
+    // prefix fallback: syllables starting with the input
+    const pref = [...PY2SP.keys()].filter(x => x.startsWith(py) && x !== py).sort();
+    if (pref.length) {
+      const st = section([titlePart("拼音前缀 "), titlePart(py, "g"), titlePart(" · " + pref.length + " 个音节")]);
+      const chips = el("div", "chips");
+      for (const p of pref.slice(0, 24)) {
+        const chip = el("button", "chip");
+        chip.appendChild(el("span", null, p));
+        chip.appendChild(el("span", "c-sub", PY2SP.get(p)));
+        chip.addEventListener("click", () => { $q.value = p; render(p); });
+        chips.appendChild(chip);
+      }
+      st.appendChild(chips);
+      any = true;
+    }
+  }
+  if (!any) renderNoHit(s);
+}
+
+function renderNoHit(s) {
+  const st = section([titlePart("没有结果")]);
+  st.appendChild(el("div", "empty", "「" + s + "」不是有效的小鹤双拼码或音节。双拼码是两个字母；全码是四码；也可以直接输入拼音或粘贴汉字。"));
+}
+
+// ---- wiring ---------------------------------------------------------------
+let renderT = 0;
+$q.addEventListener("input", () => {
+  clearTimeout(renderT);
+  renderT = setTimeout(() => render($q.value), 40);
+});
+$clear.addEventListener("click", () => { $q.value = ""; render(""); $q.focus(); });
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { $q.value = ""; render(""); $q.focus(); return; }
+  if (!copyables.length) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    if (hlIndex >= 0) copyables[hlIndex].node.classList.remove("hl");
+    hlIndex = e.key === "ArrowDown"
+      ? (hlIndex + 1) % copyables.length
+      : (hlIndex - 1 + copyables.length) % copyables.length;
+    copyables[hlIndex].node.classList.add("hl");
+    copyables[hlIndex].node.scrollIntoView({ block: "nearest" });
+  } else if (e.key === "Enter" && hlIndex >= 0 && document.activeElement === $q) {
+    copyText(copyables[hlIndex].text);
+  }
+});
+render("");
+
+// PWA: only when served over https (GitHub Pages); inert as a local file.
+if ("serviceWorker" in navigator && location.protocol === "https:") {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>
